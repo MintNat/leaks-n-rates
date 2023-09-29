@@ -3,24 +3,46 @@ package com.solo.leaksnrates;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Refill;
+import lombok.extern.java.Log;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class RateLimitProvider {
-    public static final int REQUESTS_CAPACITY = 10;
-    public static final int TOKENS_REFILL = 5;
-    private static final Refill refill = Refill.intervally(TOKENS_REFILL, Duration.ofSeconds(20));
-    private static final Bandwidth limit = Bandwidth.classic(REQUESTS_CAPACITY, refill);
+@Log
+@Component
+class RateLimitProvider {
+    @Value("${ratelimit.requestsnumber}")
+    private int REQUESTS_CAPACITY;
+    @Value("${ratelimit.tokensRefill}")
+    private int TOKENS_REFILL;
+    @Value("${ratelimit.refillduration.seconds}")
+    private int DURATION_SECONDS;
+    private final Map<UserAppID, Bucket> cache = new ConcurrentHashMap<>();
 
-    private RateLimitProvider() {
+    /**
+     * Check if the user haven't reached its requests limit
+     *
+     * @param user the user that a check should be provided for
+     * @return true if the user haven't reached limit and is eligible for retrieving payload, false otherwise
+     */
+    public boolean validateUser(UserAppID user) {
+        synchronized (cache) {
+            cache.computeIfAbsent(user, userAppID -> getNewBucket());
+            log.info("Available tokens for " + user + ": " + cache.get(user).getAvailableTokens());
+            return cache.get(user).tryConsume(1);
+        }
     }
 
-    public static Bucket getNewBucket() {
+    Bucket getNewBucket() {
+        Refill refill = Refill.intervally(TOKENS_REFILL, Duration.ofSeconds(DURATION_SECONDS));
         return Bucket.builder()
-                .addLimit(limit)
+                .addLimit(Bandwidth.classic(REQUESTS_CAPACITY, refill))
                 .build();
     }
 
-    public static class OutOfTokensException extends Throwable {
+    public static class OutOfTokensException extends Exception {
     }
 }

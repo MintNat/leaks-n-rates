@@ -17,6 +17,13 @@ public class RandomNumbersProducerController {
     @Autowired
     RandomNumberService service;
 
+    /**
+     * Provides random numbers as much as user requested.
+     *
+     * @param count how many numbers should be generated
+     * @return response with the random numbers
+     * @implNote Produces memory leak by logging each request and response.
+     */
     @GetMapping(path = "/random", params = {"count"})
     ResponseEntity<String> getRandomNumbers(@RequestParam Integer count) {
         try {
@@ -27,15 +34,25 @@ public class RandomNumbersProducerController {
         }
     }
 
+    /**
+     * Provides random numbers as much as user requested with the rate limiting based on headers.
+     *
+     * @param uuid a header with the user ID
+     * @param appId a header with the calling application ID
+     * @param count how many numbers should be generated
+     * @return 200 response with generated random numbers or 429 if the request was throttled
+     * @implNote Produces memory leak by logging each request and response.
+     */
     @GetMapping(path = "/throttle_random", params = {"count"})
     ResponseEntity<String> getRandomNumbersThrottled(@RequestHeader(value = "x-tr-uuid") String uuid,
                                                      @RequestHeader(value = "x-tr-applicationid") String appId,
                                                      @RequestParam Integer count) {
 
+        UserAppID user = new UserAppID(uuid, appId);
         try {
-            return new ResponseEntity<>(service.getRandomNumbersThrottled(new UserAppID(uuid, appId), count), HttpStatus.OK);
+            return new ResponseEntity<>(service.getRandomNumbersThrottled(user, count), HttpStatus.OK);
         } catch (OutOfTokensException e) {
-            log.info(String.format("Throttled %s request from application: %s", uuid, appId));
+            log.info(String.format("Throttled request from %s", user));
             return new ResponseEntity<>(HttpStatus.TOO_MANY_REQUESTS);
         } catch (Exception e) {
             log.info("Failed to process request, reason: " + e.getMessage());
