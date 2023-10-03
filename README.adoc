@@ -1,11 +1,25 @@
+Spring boot application that has a memory leak and rate limiting using Bucket4j.
+
 Build application with:
 ```
 mvn clean package
 ```
+
 Run application with options:
 ```
 java -Xmx32m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=./heapdumps -Xshare:off -jar target/leaks-n-rates-0.1-SNAPSHOT.jar
 ```
+
+Find out a PID of the java process:
+```
+jps -lvm
+```
+
+To create a heapdump based on PID:
+```
+jmap -dump:live,format=b,file=app_dump_03102023.hprof PID
+```
+
 To kill java process based on its PID:
 ```
 taskkill /F /PID [pid_number]
